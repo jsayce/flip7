@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flip 7 Score Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 2rem;
+      color: #f8fafc;
+      letter-spacing: -0.5px;
+    }
+
+    /* ── Setup screens ─────────────────────────────── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.2rem;
+      width: 100%;
+      max-width: 420px;
+      animation: fadeIn 0.25s ease;
+    }
+    .screen.active { display: flex; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card {
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 14px;
+      padding: 2rem;
+      width: 100%;
+    }
+
+    .card p {
+      margin-bottom: 1rem;
+      color: #94a3b8;
+      font-size: 0.95rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      padding: 0.65rem 0.9rem;
+      border-radius: 8px;
+      border: 1px solid #3a3f5c;
+      background: #131625;
+      color: #f1f5f9;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #6366f1; }
+
+    .name-inputs { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; }
+    .name-row { display: flex; align-items: center; gap: 0.5rem; }
+    .name-row span {
+      font-size: 0.8rem;
+      color: #6366f1;
+      font-weight: 700;
+      min-width: 2rem;
+      text-align: right;
+    }
+
+    /* ── Emoji picker ──────────────────────────────── */
+    .emoji-btn {
+      flex-shrink: 0;
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 8px;
+      border: 1px solid #3a3f5c;
+      background: #131625;
+      font-size: 1.15rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s, background 0.15s;
+      padding: 0;
+      line-height: 1;
+    }
+    .emoji-btn:hover { border-color: #6366f1; background: #1a1f38; }
+
+    #emojiPicker {
+      position: fixed;
+      z-index: 999;
+      background: #1e2130;
+      border: 1px solid #3a3f5c;
+      border-radius: 12px;
+      padding: 0.6rem;
+      display: none;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 2px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      width: 260px;
+    }
+    #emojiPicker.open { display: grid; }
+
+    .emoji-option {
+      font-size: 1.3rem;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.1s;
+      border: none;
+      background: transparent;
+      padding: 0;
+      line-height: 1;
+    }
+    .emoji-option:hover { background: #2d3148; }
+    .emoji-option.selected { background: #3730a3; outline: 2px solid #6366f1; }
+
+    button {
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    button:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: #6366f1;
+      color: #fff;
+      width: 100%;
+    }
+    .btn-primary:hover { background: #4f51d8; }
+
+    .btn-sm {
+      padding: 0.45rem 1rem;
+      font-size: 0.85rem;
+      background: #2d3148;
+      color: #cbd5e1;
+      border: 1px solid #3a3f5c;
+    }
+    .btn-sm:hover { background: #3a3f5c; }
+
+    .btn-add {
+      background: #1e2130;
+      border: 1px dashed #3a3f5c;
+      color: #64748b;
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+    .btn-add:hover { border-color: #6366f1; color: #6366f1; background: #1e2130; }
+
+    /* ── Game screen ───────────────────────────────── */
+    #gameScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 960px;
+      gap: 1.5rem;
+      animation: fadeIn 0.3s ease;
+    }
+    #gameScreen.active { display: flex; }
+
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    .game-header h2 { font-size: 1.2rem; color: #cbd5e1; }
+
+    /* ── Score table ───────────────────────────────── */
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 14px;
+      padding: 1.2rem;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 400px;
+    }
+
+    thead th {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      text-align: center;
+      border-bottom: 1px solid #2d3148;
+      white-space: nowrap;
+    }
+    thead th:first-child { text-align: left; color: #64748b; }
+
+    tbody tr:not(.total-row) td { padding: 0.35rem 0.4rem; }
+    .round-cell {
+      padding: 0.5rem 0.75rem !important;
+      font-size: 0.8rem;
+      color: #64748b;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .score-input {
+      width: 70px;
+      padding: 0.4rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #2d3148;
+      background: #131625;
+      color: #f1f5f9;
+      font-size: 0.9rem;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .score-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+    .score-input.has-value { background: #1a1f38; }
+
+    .total-row td {
+      padding: 0.6rem 0.75rem;
+      border-top: 1px solid #2d3148;
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .total-row td:first-child { text-align: left; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    /* ── Chart ─────────────────────────────────────── */
+    .chart-wrapper {
+      width: 100%;
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 14px;
+      padding: 1.5rem;
+    }
+    .chart-wrapper canvas { max-height: 360px; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.82rem;
+      color: #cbd5e1;
+    }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .empty-chart {
+      text-align: center;
+      color: #3a3f5c;
+      font-size: 0.9rem;
+      padding: 3rem 0;
+    }
+
+    /* ── Winner banner ─────────────────────────────── */
+    .winner-banner {
+      width: 100%;
+      border-radius: 14px;
+      padding: 1.5rem 2rem;
+      text-align: center;
+      animation: fadeIn 0.4s ease;
+    }
+    .winner-banner.is-winner {
+      background: linear-gradient(135deg, #1c1a0e 0%, #1e1e10 100%);
+      border: 1px solid #854d0e;
+      box-shadow: 0 0 32px rgba(251,191,36,0.12);
+    }
+    .winner-banner.is-tie {
+      background: #1a1e2e;
+      border: 1px solid #3a3f5c;
+    }
+
+    .winner-title {
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    .is-winner .winner-title { color: #fbbf24; }
+    .is-tie    .winner-title { color: #94a3b8; }
+
+    .winner-names {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 0.4rem;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .winner-name-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 0.2rem 0.7rem;
+    }
+
+    .winner-score {
+      font-size: 0.88rem;
+      color: #94a3b8;
+    }
+    .is-winner .winner-score { color: #fbbf24; }
+
+    .winner-col-highlight {
+      background: rgba(251,191,36,0.07) !important;
+    }
+
+    @keyframes winPulse {
+      0%, 100% { box-shadow: 0 0 32px rgba(251,191,36,0.12); }
+      50%       { box-shadow: 0 0 48px rgba(251,191,36,0.28); }
+    }
+    .is-winner { animation: fadeIn 0.4s ease, winPulse 2.5s ease-in-out 0.4s infinite; }
+  </style>
+</head>
+<body>
+
+<h1>Flip 7 Score Tracker</h1>
+
+<!-- Step 1: player count -->
+<div id="step1" class="screen active">
+  <div class="card">
+    <p>How many players are there?</p>
+    <label for="playerCount">Number of players</label>
+    <input type="number" id="playerCount" min="2" max="10" value="2" autofocus>
+  </div>
+  <button class="btn-primary" onclick="goToStep2()">Next →</button>
+</div>
+
+<!-- Emoji picker popup (shared) -->
+<div id="emojiPicker"></div>
+
+<!-- Step 2: player names -->
+<div id="step2" class="screen">
+  <div class="card">
+    <p>Enter each player's name and pick an emoji.</p>
+    <div class="name-inputs" id="nameInputs"></div>
+  </div>
+  <button class="btn-primary" onclick="startGame()">Start Game →</button>
+</div>
+
+<!-- Game screen -->
+<div id="gameScreen">
+  <div class="game-header">
+    <h2 id="gameTitleLabel"></h2>
+    <button class="btn-sm" onclick="resetGame()">↩ New Game</button>
+  </div>
+
+  <div id="winnerBanner" class="winner-banner" style="display:none">
+    <div class="winner-title" id="winnerTitle"></div>
+    <div class="winner-names" id="winnerNames"></div>
+    <div class="winner-score" id="winnerScore"></div>
+  </div>
+
+  <div class="table-wrapper">
+    <table id="scoreTable">
+      <thead><tr id="tableHead"></tr></thead>
+      <tbody id="tableBody"></tbody>
+      <tfoot><tr class="total-row" id="totalRow"></tr></tfoot>
+    </table>
+    <button class="btn-add" onclick="addRound()">+ Add Round</button>
+  </div>
+
+  <div class="chart-wrapper">
+    <div class="legend" id="chartLegend"></div>
+    <canvas id="scoreChart"></canvas>
+    <p class="empty-chart" id="chartEmpty">Enter scores above to see the chart.</p>
+  </div>
+</div>
+
+<script>
+  // ── State ───────────────────────────────────────────
+  let players      = [];
+  let playerEmojis = [];
+  let scores       = [];   // scores[round][player] = number | null
+  let chart        = null;
+  let roundCount   = 0;
+
+  const WIN_SCORE = 200;
+
+  const COLORS = [
+    '#6366f1','#f43f5e','#10b981','#f59e0b',
+    '#06b6d4','#a855f7','#ec4899','#84cc16',
+    '#f97316','#14b8a6'
+  ];
+
+  const EMOJIS = [
+    '😀','😎','🤩','😈','👻','💀','🤖','👹',
+    '🦊','🐶','🐱','🐼','🦁','🐯','🦄','🐸',
+    '🐙','🦈','🦅','🐉','🐺','🦝','🐨','🦖',
+    '🔥','⚡','💎','🏆','🎯','🚀','💫','⭐',
+    '🎮','🃏','🎲','🍀','💣','🌙','☀️','🎪'
+  ];
+
+  // ── Emoji picker ─────────────────────────────────────
+  let pickerTargetIdx = null;
+
+  (function buildEmojiPicker() {
+    const picker = document.getElementById('emojiPicker');
+    EMOJIS.forEach(em => {
+      const btn = document.createElement('button');
+      btn.className = 'emoji-option';
+      btn.textContent = em;
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        selectEmoji(em);
+      });
+      picker.appendChild(btn);
+    });
+  })();
+
+  function openEmojiPicker(idx, anchorEl) {
+    pickerTargetIdx = idx;
+    const picker = document.getElementById('emojiPicker');
+    const rect = anchorEl.getBoundingClientRect();
+
+    // Highlight currently selected
+    picker.querySelectorAll('.emoji-option').forEach(btn => {
+      btn.classList.toggle('selected', btn.textContent === playerEmojis[idx]);
+    });
+
+    // Position below the button, flip up if near bottom
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow < 220) {
+      picker.style.top  = `${rect.top + window.scrollY - 220}px`;
+    } else {
+      picker.style.top  = `${rect.bottom + window.scrollY + 4}px`;
+    }
+    picker.style.left = `${Math.min(rect.left, window.innerWidth - 270)}px`;
+    picker.classList.add('open');
+  }
+
+  function selectEmoji(em) {
+    if (pickerTargetIdx === null) return;
+    playerEmojis[pickerTargetIdx] = em;
+    const btn = document.getElementById(`emoji-btn-${pickerTargetIdx}`);
+    if (btn) btn.textContent = em;
+    closeEmojiPicker();
+  }
+
+  function closeEmojiPicker() {
+    document.getElementById('emojiPicker').classList.remove('open');
+    pickerTargetIdx = null;
+  }
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#emojiPicker') && !e.target.closest('.emoji-btn')) {
+      closeEmojiPicker();
+    }
+  });
+
+  function playerLabel(i) {
+    return `${playerEmojis[i]} ${players[i]}`;
+  }
+
+  // ── Step navigation ─────────────────────────────────
+  function goToStep2() {
+    const n = parseInt(document.getElementById('playerCount').value);
+    if (isNaN(n) || n < 2 || n > 10) {
+      alert('Please enter a number between 2 and 10.');
+      return;
+    }
+
+    // assign default emojis (cycle through first N)
+    playerEmojis = Array.from({ length: n }, (_, i) => EMOJIS[i % EMOJIS.length]);
+
+    const container = document.getElementById('nameInputs');
+    container.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const row = document.createElement('div');
+      row.className = 'name-row';
+      row.innerHTML = `<span>#${i + 1}</span>
+        <button class="emoji-btn" id="emoji-btn-${i}"
+                onclick="openEmojiPicker(${i}, this)">${playerEmojis[i]}</button>
+        <input type="text" placeholder="Player ${i + 1}" value="Player ${i + 1}"
+               id="pname${i}" maxlength="20">`;
+      container.appendChild(row);
+    }
+    document.getElementById('nameInputs').querySelector('input').focus();
+
+    show('step1', false);
+    show('step2', true);
+  }
+
+  function startGame() {
+    const n = document.querySelectorAll('#nameInputs input').length;
+    players = [];
+    for (let i = 0; i < n; i++) {
+      const val = document.getElementById(`pname${i}`).value.trim();
+      players.push(val || `Player ${i + 1}`);
+      // keep playerEmojis[i] as already set by picker
+    }
+
+    scores = [];
+    roundCount = 0;
+
+    buildTable();
+    buildChart();
+
+    document.getElementById('gameTitleLabel').textContent =
+      `${players.length} players · 0 rounds`;
+
+    show('step2', false);
+    document.getElementById('gameScreen').classList.add('active');
+
+    addRound();
+  }
+
+  function resetGame() {
+    if (!confirm('Start a new game? All scores will be cleared.')) return;
+    if (chart) { chart.destroy(); chart = null; }
+    hideBanner();
+    document.getElementById('gameScreen').classList.remove('active');
+    scores = []; players = []; roundCount = 0;
+    document.getElementById('playerCount').value = 2;
+    show('step1', true);
+  }
+
+  function show(id, visible) {
+    const el = document.getElementById(id);
+    if (visible) el.classList.add('active');
+    else         el.classList.remove('active');
+  }
+
+  // ── Table ───────────────────────────────────────────
+  function buildTable() {
+    const head = document.getElementById('tableHead');
+    const total = document.getElementById('totalRow');
+    head.innerHTML  = '<th>Round</th>';
+    total.innerHTML = '<td>Total</td>';
+
+    players.forEach((_, i) => {
+      const th = document.createElement('th');
+      th.textContent = playerLabel(i);
+      th.style.color = COLORS[i % COLORS.length];
+      head.appendChild(th);
+
+      const td = document.createElement('td');
+      td.id = `total-${i}`;
+      td.textContent = '0';
+      td.style.color = COLORS[i % COLORS.length];
+      total.appendChild(td);
+    });
+
+    document.getElementById('tableBody').innerHTML = '';
+  }
+
+  function addRound() {
+    roundCount++;
+    scores.push(new Array(players.length).fill(null));
+
+    const row = document.createElement('tr');
+    const roundTd = document.createElement('td');
+    roundTd.className = 'round-cell';
+    roundTd.textContent = `Round ${roundCount}`;
+    row.appendChild(roundTd);
+
+    players.forEach((_, pIdx) => {
+      const td = document.createElement('td');
+      td.style.textAlign = 'center';
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'score-input';
+      input.placeholder = '—';
+      input.dataset.round  = roundCount - 1;
+      input.dataset.player = pIdx;
+      input.addEventListener('input', onScoreInput);
+      td.appendChild(input);
+      row.appendChild(td);
+    });
+
+    document.getElementById('tableBody').appendChild(row);
+
+    document.getElementById('gameTitleLabel').textContent =
+      `${players.length} players · ${roundCount} round${roundCount !== 1 ? 's' : ''}`;
+
+    row.querySelector('input').focus();
+    updateChart();
+  }
+
+  function onScoreInput(e) {
+    const r = parseInt(e.target.dataset.round);
+    const p = parseInt(e.target.dataset.player);
+    const val = e.target.value.trim();
+    scores[r][p] = val === '' ? null : parseFloat(val);
+    e.target.classList.toggle('has-value', val !== '');
+    updateTotals();
+    updateChart();
+  }
+
+  function updateTotals() {
+    players.forEach((_, pIdx) => {
+      let sum = 0;
+      scores.forEach(round => {
+        if (round[pIdx] !== null) sum += round[pIdx];
+      });
+      document.getElementById(`total-${pIdx}`).textContent = sum;
+    });
+    checkForWinner();
+  }
+
+  // ── Win detection ────────────────────────────────────
+  function checkForWinner() {
+    const totals = players.map((_, pIdx) =>
+      scores.reduce((sum, r) => sum + (r[pIdx] ?? 0), 0)
+    );
+    const maxScore = Math.max(...totals);
+    if (maxScore < WIN_SCORE) { hideBanner(); return; }
+
+    const winnerIdxs = players.map((_, i) => i).filter(i => totals[i] === maxScore);
+    showWinnerBanner(winnerIdxs, maxScore, winnerIdxs.length > 1);
+  }
+
+  function showWinnerBanner(winnerIdxs, score, isTie) {
+    const banner = document.getElementById('winnerBanner');
+    banner.className = `winner-banner ${isTie ? 'is-tie' : 'is-winner'}`;
+
+    document.getElementById('winnerTitle').textContent =
+      isTie ? '🤝 Tie!' : '🏆 Winner!';
+
+    document.getElementById('winnerNames').innerHTML = winnerIdxs
+      .map(i => `<span class="winner-name-chip">${playerEmojis[i]} ${players[i]}</span>`)
+      .join('');
+
+    document.getElementById('winnerScore').textContent = isTie
+      ? `Both at ${score} pts — add a round to break the tie`
+      : `${score} points`;
+
+    // Highlight winning columns in table
+    document.querySelectorAll('thead th, .total-row td').forEach(el =>
+      el.classList.remove('winner-col-highlight')
+    );
+    winnerIdxs.forEach(i => {
+      // th is at column index i+1 (0 is "Round")
+      const th = document.getElementById('tableHead').children[i + 1];
+      const td = document.getElementById(`total-${i}`);
+      if (th) th.classList.add('winner-col-highlight');
+      if (td) td.classList.add('winner-col-highlight');
+    });
+
+    banner.style.display = 'block';
+  }
+
+  function hideBanner() {
+    const banner = document.getElementById('winnerBanner');
+    banner.style.display = 'none';
+    document.querySelectorAll('.winner-col-highlight').forEach(el =>
+      el.classList.remove('winner-col-highlight')
+    );
+  }
+
+  // ── Chart ───────────────────────────────────────────
+  function buildChart() {
+    const ctx = document.getElementById('scoreChart').getContext('2d');
+
+    const legend = document.getElementById('chartLegend');
+    legend.innerHTML = '';
+    players.forEach((_, i) => {
+      const item = document.createElement('div');
+      item.className = 'legend-item';
+      item.innerHTML = `<span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${playerLabel(i)}`;
+      legend.appendChild(item);
+    });
+
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: [], datasets: [] },
+      options: {
+        responsive: true,
+        animation: { duration: 200 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          annotation: {
+            annotations: {
+              winLine: {
+                type: 'line',
+                yMin: WIN_SCORE, yMax: WIN_SCORE,
+                borderColor: '#fbbf24',
+                borderWidth: 1.5,
+                borderDash: [6, 4],
+                label: {
+                  content: '200 — Win',
+                  display: true,
+                  position: 'end',
+                  color: '#fbbf24',
+                  backgroundColor: '#1c1a0e',
+                  font: { size: 11, weight: '600' },
+                  padding: { x: 6, y: 3 }
+                }
+              }
+            }
+          },
+          tooltip: {
+            backgroundColor: '#1e2130',
+            borderColor: '#2d3148',
+            borderWidth: 1,
+            titleColor: '#94a3b8',
+            bodyColor: '#f1f5f9',
+            padding: 10,
+            callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#1a1f38' },
+            ticks: { color: '#64748b', font: { size: 11 } },
+            title: {
+              display: true, text: 'Round',
+              color: '#475569', font: { size: 12 }
+            }
+          },
+          y: {
+            grid: { color: '#1a1f38' },
+            ticks: { color: '#64748b', font: { size: 11 } },
+            title: {
+              display: true, text: 'Cumulative Score',
+              color: '#475569', font: { size: 12 }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function updateChart() {
+    if (!chart) return;
+
+    // Build cumulative data up to the last round with any score
+    const axisLength = Math.max(roundCount, 8);
+    const datasets = players.map((_, pIdx) => {
+      const data = [];
+      let cumulative = 0;
+      for (let r = 0; r < roundCount; r++) {
+        if (scores[r][pIdx] !== null) {
+          cumulative += scores[r][pIdx];
+          data.push(cumulative);
+        } else {
+          data.push(data.length > 0 ? data[data.length - 1] : null);
+        }
+      }
+      // Pad remaining slots up to axisLength with nulls (future rounds)
+      while (data.length < axisLength) data.push(null);
+      return {
+        label: playerLabel(pIdx),
+        data,
+        borderColor: COLORS[pIdx % COLORS.length],
+        backgroundColor: COLORS[pIdx % COLORS.length] + '22',
+        pointBackgroundColor: COLORS[pIdx % COLORS.length],
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 2.5,
+        tension: 0.3,
+        fill: false,
+        spanGaps: true
+      };
+    });
+
+    const labels = Array.from({ length: axisLength }, (_, i) => `R${i + 1}`);
+    chart.data.labels   = labels;
+    chart.data.datasets = datasets;
+    chart.update();
+
+    const hasAnyScore = scores.some(r => r.some(v => v !== null));
+    document.getElementById('chartEmpty').style.display = hasAnyScore ? 'none' : 'block';
+    document.getElementById('scoreChart').style.display = hasAnyScore ? 'block' : 'none';
+  }
+</script>
+
+</body>
+</html>
